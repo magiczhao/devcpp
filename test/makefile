@@ -1,0 +1,27 @@
+cc=gcc
+THIRD_PATH=../../local
+list_target=tlist_test
+list_src=test_list.c
+list_obj=${patsubst %.c, %.o, $(list_src)}
+
+fixed_target=tfixed_test
+fixed_src=test_fixed_alloc.c
+fixed_obj=${patsubst %.c, %.o, $(fixed_src)}
+
+LD_FLAGS=-L$(THIRD_PATH)/lib -lcheck
+CFLAGS=-I$(THIRD_PATH)/include -I../src
+
+all:$(list_target) $(fixed_target)
+
+$(list_target):$(list_obj)
+	$(cc) -o $@ $^ $(LD_FLAGS)
+
+$(fixed_target):$(fixed_obj)
+	$(cc) -o $@ $^ $(LD_FLAGS)
+
+%.o:%.c
+	$(cc) -c -std=c99 $< $(CFLAGS)
+
+clean:
+	rm $(list_target) $(fixed_target) -fr
+	rm *.o -fr
