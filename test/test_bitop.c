@@ -16,11 +16,20 @@ START_TEST(test_set_bit)
 }
 END_TEST
 
+START_TEST(test_clear_bit)
+{
+    char cval = 9;
+    clear_bit(&cval, 3);
+    fail_unless(cval == 1, "clear bit failed");
+}
+END_TEST
+
 Suite* bit_suite()
 {
     Suite* s = suite_create("bitop");
     TCase* bitcase = tcase_create("op");
     tcase_add_test(bitcase, test_set_bit);
+    tcase_add_test(bitcase, test_clear_bit);
     suite_add_tcase(s, bitcase);
     return s;
 }
