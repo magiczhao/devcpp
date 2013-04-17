@@ -9,4 +9,5 @@ unsigned int bits_set_largenum(unsigned long number);
 #define bits_set    bits_set_smallnum
 #endif
 
+#define set_bit(ptr, bit)   do{(*ptr) = (*ptr) | (1 << bit);}while(0)
 #endif

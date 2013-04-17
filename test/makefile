@@ -8,10 +8,17 @@ fixed_target=tfixed_test
 fixed_src=test_fixed_alloc.c
 fixed_obj=${patsubst %.c, %.o, $(fixed_src)}
 
+bit_target=tbit_test
+bit_src=test_bitop.c
+bit_obj=${patsubst %.c, %.o, $(bit_src)}
+
 LD_FLAGS=-L$(THIRD_PATH)/lib -lcheck
 CFLAGS=-I$(THIRD_PATH)/include -I../src
 
-all:$(list_target) $(fixed_target)
+all:$(list_target) $(fixed_target) $(bit_target)
+
+$(bit_target):$(bit_obj)
+	$(cc) -o $@ $^ $(LD_FLAGS)
 
 $(list_target):$(list_obj)
 	$(cc) -o $@ $^ $(LD_FLAGS)
