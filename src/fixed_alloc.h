@@ -1,5 +1,8 @@
 #ifndef _DEVLIB_SIMPLE_ALLOC_H
 #define _DEVLIB_SIMPLE_ALLOC_H
+/**
+ * fixed size memory allocator, all blocks allocated are the same size
+ */
 #include "dlist.h"
 #include <stdlib.h>
 
@@ -10,10 +13,15 @@ struct dmem_node
 
 struct fixed_dmem_pool
 {
+    /** free memory list */
     struct dlist_node head;
+    /** max count of blocks can allocate */
     int item_size;
+    /** memory size used by this allocator */
     int total_size;
+    /** the memory area controled by this allocator */
     char* buffer;
+    /** free area in the buffer */
     char* position;
 };
 
@@ -59,12 +67,12 @@ inline static void* __d_fp_malloc_from_list(struct fixed_dmem_pool* pool)
 void* d_fp_malloc(struct fixed_dmem_pool* pool, int size)
 {
 #define FIXED_POOL_EMPTY(pl)  ((pl->position - pl->buffer) >= pl->total_size)
-    if(pool->item_size > size){
+    if(pool->item_size > size){    //first try malloc from the list
         void * buf = __d_fp_malloc_from_list(pool);
         if(buf){
             return buf;
         }
-        if(!FIXED_POOL_EMPTY(pool)){
+        if(!FIXED_POOL_EMPTY(pool)){    //then try malloc from free area
             buf = pool->position;
             pool->position += pool_block_size(pool);
             return buf;
@@ -76,6 +84,7 @@ void* d_fp_malloc(struct fixed_dmem_pool* pool, int size)
 
 void* d_fp_free(struct fixed_dmem_pool* pool, void* ptr)
 {
+    //on free, just put the buffer back to the list
     struct dmem_node* node = (struct dmem_node*) ptr;
     dlist_add(&pool->head, &node->node);
 }
