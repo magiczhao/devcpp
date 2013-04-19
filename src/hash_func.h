@@ -1,5 +1,8 @@
 #ifndef _DEVLIB_HASH_FUNC_H
 #define _DEVLIB_HASH_FUNC_H
+/** hash functions from http://www.partow.net/programming/hashfunctions/ */
+
+/** hash function prototype */
 typedef unsigned int (*dhash_func) (const char*, unsigned int);
 
 static inline unsigned int RSHash(const char* str, unsigned int len)
