@@ -1,5 +1,8 @@
 #ifndef _DEVLIB_COMMON_H
 #define _DEVLIB_COMMON_H
+/**
+ * commonly used constant value & macros & functions
+ */
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
