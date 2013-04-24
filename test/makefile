@@ -14,15 +14,22 @@ bit_obj=${patsubst %.c, %.o, $(bit_src)}
 
 bloom_target=tbloomfilter
 bloom_src=test_bloomfilter.c
-bloom_obj=${patsubst %c, %o, $(bloom_src)}
+bloom_obj=${patsubst %.c, %.o, $(bloom_src)}
+
+hashtable_target=thashtable
+hashtable_src=test_hash_table.c
+hashtable_obj=${patsubst %.c, %.o, $(hashtable_src)}
 
 LD_FLAGS=-L$(THIRD_PATH)/lib -lcheck -L../src -ldev
-CFLAGS=-I$(THIRD_PATH)/include -I../src
+CFLAGS=-I$(THIRD_PATH)/include -I../src -g -O2
 
-all:$(list_target) $(fixed_target) $(bit_target) $(bloom_target)
+all:$(list_target) $(fixed_target) $(bit_target) $(bloom_target) $(hashtable_target)
 
 $(bit_target):$(bit_obj)
 	$(cc) -o $@ $^ $(LD_FLAGS)
+
+$(hashtable_target):$(hashtable_obj)
+	$(cc) -o $@ $^ $(LD_FLAGS) 
 
 $(list_target):$(list_obj)
 	$(cc) -o $@ $^ $(LD_FLAGS)
@@ -34,8 +41,8 @@ $(bloom_target):$(bloom_obj)
 	$(cc) -o $@ $^ $(LD_FLAGS)
 
 %.o:%.c
-	$(cc) -c -std=c99 $< $(CFLAGS)
+	$(cc) -c -std=c99 $< $(CFLAGS) 
 
 clean:
-	rm $(list_target) $(fixed_target) -fr
+	rm $(list_target) $(fixed_target) $(hashtable_target) -fr
 	rm *.o -fr

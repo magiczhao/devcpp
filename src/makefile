@@ -7,7 +7,7 @@ $(target):$(objs)
 	ar -rcu $@ $^
 
 %.o:%.c
-	gcc -std=c99 -c $<  -Wall -g
+	gcc -std=c99 -c $<  -Wall -g -O2
 
 clean:
 	rm $(target) -f

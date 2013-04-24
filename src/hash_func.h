@@ -5,6 +5,14 @@
 /** hash function prototype */
 typedef unsigned int (*dhash_func) (const char*, unsigned int);
 
+static inline unsigned int OriginHash(const char* str, unsigned int len)
+{
+    unsigned int ptr = (unsigned int) str;
+    return ptr;
+}
+
+//OriginHash 
+
 static inline unsigned int RSHash(const char* str, unsigned int len)
 {
    unsigned int b    = 378551;
