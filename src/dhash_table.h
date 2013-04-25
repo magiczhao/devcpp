@@ -5,13 +5,24 @@
 #include "common.h"
 #include "fixed_alloc.h"
 #include "dstring.h"
+/**
+ * a simple hash table implementation
+ * fixed size allocator is used
+ * key & values are stored inside hash table, and the caller must free them after remove from hash table
+ */
+ 
+/**
+ * compare if two keys are same
+ */
 typedef int (*compare_func)(char*, int, char*, int);
 struct dhash_node
 {
-    struct dlist_node lnode;
+    struct dlist_node lnode; //link on collision
     struct dstring key;
     void* value;
 };
+
+//TODO the table now is fixed size\
 struct dhash_table
 {
     int capacity;
