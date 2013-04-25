@@ -5,11 +5,9 @@ static inline struct dhash_node* _dhash_find(struct dhash_table* ht, char* key, 
 {
     unsigned int hval = ht->hash(key, key_size);
     unsigned int hpos = hval % ht->capacity;
-    //printf("hpos is:%d\n", hpos);
     struct dlist_node* pos;
     dlist_for_each(pos, &(ht->buckets[hpos])){
         struct dhash_node* node = container_of(pos, struct dhash_node, lnode);
-        //printf("pos:%d, node:%d, key:%d, %d, sz:%d\n", (int)pos, (int)node, (int)node->key.buffer, key, key_size);
         if(ht->compare(dstring_buffer(&node->key), dstring_size(&node->key), key, key_size) == 0){ 
             return node;
         }

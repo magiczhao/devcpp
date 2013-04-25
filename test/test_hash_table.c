@@ -25,15 +25,15 @@ START_TEST(test_ht_insert)
     void* value;
     char* buffer = "this is test";
     dhash_table_init(&ht, 1024 * 1024, OriginHash, comp);
-    for(int i = 0; i < 1000000; i+=3){
+    for(int i = 0; i < 100000; i+=3){
         ret = dhash_table_add(&ht, (char*)i, sizeof(i), buffer);
         fail_unless(ret == 0, "insert hash table failed i=%d, %s", i, strerror(errno));
     }
-    for(int i = 0; i < 1000000; i+= 3){
+    for(int i = 0; i < 100000; i+= 3){
         ret = dhash_table_find(&ht, (char*)i, sizeof(i), &value);
         fail_unless(ret == true, "find hash table failed i=%d", i);
     }
-    for(int i = 1; i < 1000000; i+= 3){
+    for(int i = 1; i < 100000; i+= 3){
         ret = dhash_table_find(&ht, (char*)i, sizeof(i), &value);
         fail_unless(ret == false, "find hash table failed i=%d", i);
     }

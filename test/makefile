@@ -20,10 +20,16 @@ hashtable_target=thashtable
 hashtable_src=test_hash_table.c
 hashtable_obj=${patsubst %.c, %.o, $(hashtable_src)}
 
+lock_target=tlock
+lock_src=test_lock.c
+lock_obj=${patsubst %.c, %.o, $(lock_src)}
+
 LD_FLAGS=-L$(THIRD_PATH)/lib -lcheck -L../src -ldev
 CFLAGS=-I$(THIRD_PATH)/include -I../src -g -O2
 
-all:$(list_target) $(fixed_target) $(bit_target) $(bloom_target) $(hashtable_target)
+all:$(list_target) $(fixed_target) $(bit_target) $(bloom_target) $(hashtable_target) $(lock_target)
+$(lock_target):$(lock_obj)
+	$(cc) -o $@ $^ $(LD_FLAGS)
 
 $(bit_target):$(bit_obj)
 	$(cc) -o $@ $^ $(LD_FLAGS)
@@ -44,5 +50,5 @@ $(bloom_target):$(bloom_obj)
 	$(cc) -c -std=c99 $< $(CFLAGS) 
 
 clean:
-	rm $(list_target) $(fixed_target) $(hashtable_target) -fr
+	rm $(list_target) $(fixed_target) $(hashtable_target) $(bloom_target) $(bit_target) -fr
 	rm *.o -fr
