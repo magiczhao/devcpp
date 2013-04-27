@@ -13,4 +13,6 @@ struct dstring
 
 #define dstring_size(str)       ((str)->size)
 #define dstring_buffer(str)     ((str)->buffer)
+
+int kmp_search(const struct dstring* haystack, const struct dstring* needle);
 #endif

@@ -22,7 +22,7 @@ struct dhash_node
     void* value;
 };
 
-//TODO the table now is fixed size\
+//TODO the table now is fixed size
 struct dhash_table
 {
     int capacity;

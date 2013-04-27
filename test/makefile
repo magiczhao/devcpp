@@ -24,10 +24,18 @@ lock_target=tlock
 lock_src=test_lock.c
 lock_obj=${patsubst %.c, %.o, $(lock_src)}
 
+dstring_target=tdstring
+dstring_src=test_string.c
+dstring_obj=${patsubst %.c, %.o, $(dstring_src)}
+
 LD_FLAGS=-L$(THIRD_PATH)/lib -lcheck -L../src -ldev
 CFLAGS=-I$(THIRD_PATH)/include -I../src -g -O2
 
-all:$(list_target) $(fixed_target) $(bit_target) $(bloom_target) $(hashtable_target) $(lock_target)
+all:$(list_target) $(fixed_target) $(bit_target) $(bloom_target) $(hashtable_target) $(lock_target) $(dstring_target)
+
+$(dstring_target):$(dstring_obj)
+	$(cc) -o $@ $^ $(LD_FLAGS)
+
 $(lock_target):$(lock_obj)
 	$(cc) -o $@ $^ $(LD_FLAGS)
 
