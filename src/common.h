@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <limits.h>
+#include <unistd.h>
 #define offset_of(type, member)  ((int)(&((type*)0)->member))
 #define container_of(ptr, type, member)     ((type*)(((char*)ptr) - offset_of(type, member)))
 
