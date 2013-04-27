@@ -8,7 +8,8 @@ development need library.
 
 third party library used:
 
-  1. check 0.9.9 : unit test library
-  2. libevent 2.0.21-stable: io framework
-  3. log4c 1.2.3 : logging library
+  1. check 0.9.9[http://sourceforge.net/projects/check/] : unit test library
+  2. libevent 2.0.21-stable[http://libevent.org/]: io framework
+  3. log4c 1.2.3[http://log4c.sourceforge.net/] : logging library
+  4. tcc-0.9.26[http://bellard.org/tcc/] : config reading or something can be changed at runtime
 
