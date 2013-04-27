@@ -11,4 +11,4 @@ devlib
   1. check 0.9.9[http://sourceforge.net/projects/check/] : unit test library
   2. libevent 2.0.21-stable[http://libevent.org/]: io framework
   3. log4c 1.2.3[http://log4c.sourceforge.net/] : logging library
-  4. tcc-0.9.26[http://bellard.org/tcc/] 
+  4. tcc-0.9.26[http://bellard.org/tcc/] : config file and customize at runtime
