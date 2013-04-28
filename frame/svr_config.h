@@ -2,6 +2,7 @@
 #define _DEVLIB_FRAME_CONFIG_H
 #include "common.h"
 
+//define structure & string at same time
 #define TCC_DEFINE(tn, def)     \
     struct tn                    \
         def;                     \
