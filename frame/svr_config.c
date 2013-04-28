@@ -3,6 +3,7 @@
 
 #define MAX_CONFIG_FILE_SIZE    (1024 * 1024)
 typedef void (*load_callback)(struct frame_config*);
+//TODO the buffer can not
 int load_config(const char* filename, struct frame_config* config)
 {
     int ret = -1;
