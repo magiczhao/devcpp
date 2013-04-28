@@ -17,17 +17,21 @@ int load_config(const char* filename, struct frame_config* config)
     if(!config_content){
         goto fini;
     }
-
+    
+    //add config structure definitions here
+    //the call back function name is frame_load_config
     int pos = snprintf(config_content, MAX_CONFIG_FILE_SIZE, "%s\nvoid frame_load_config(struct frame_config* config)", frame_config_def_string);
+    //implement of frame_load_config stored in the config file
     int bytes_read = fread(config_content + pos, 1, MAX_CONFIG_FILE_SIZE - pos, fp);
     pos += bytes_read;
-    printf("cont:%s\n", config_content);
+    //printf("cont:%s\n", config_content);
 
     tcc = tcc_new();
     if(!tcc){
         goto fini;
     }
-    tcc_add_symbol(tcc, "config", config);
+    //tcc_add_symbol(tcc, "config", config);
+    //compile the string & call frame_load_config
     if(tcc_compile_string(tcc, config_content) == -1){
         goto fini;
     }
@@ -42,7 +46,7 @@ int load_config(const char* filename, struct frame_config* config)
     if(!user_config){
         goto fini;
     }
-    
+    //call user defined function
     user_config(config);
     ret = 0;
 fini:
