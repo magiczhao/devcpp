@@ -6,7 +6,7 @@ int kmp_search(const struct dstring* haystack, const struct dstring* needle)
     char* p = dstring_buffer(needle);
     char* h = dstring_buffer(haystack);
     int pptable[dstring_size(needle)];
-    //build property table
+    //build partial match table
     for(int i = 0; i < dstring_size(needle); ++i){
         if(i == 0){pptable[i] = 0; continue;}
         if(*(p + pptable[i - 1]) == *(p + i)){
