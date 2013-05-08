@@ -1,5 +1,4 @@
 #include "svr_config.h"
-#include <libtcc.h>
 
 #define MAX_CONFIG_FILE_SIZE    (1024 * 1024)
 typedef void (*load_callback)(struct frame_config*);
@@ -55,13 +54,37 @@ fini:
         fclose(fp);
         fp = NULL;
     }
+    free(config_content);
+    config_content = NULL;
     if(tcc){
         tcc_delete(tcc);
         tcc = NULL;
     }
-    free(config_content);
-    config_content = NULL;
-    free(tcc_buffer);
-    tcc_buffer = NULL;
+    if(ret == -1){
+        free(tcc_buffer);
+        tcc_buffer = NULL;
+        config->tcc_buffer = NULL;
+    }else{
+        config->tcc_buffer = tcc_buffer;
+    }
     return ret;
+}
+
+int init_config(struct frame_config* config)
+{
+#define DEFAULT_BUFFER_SIZE 8192
+    memset(config, 0, sizeof(struct frame_config));
+    config->threads = 0;
+    config->nodelay = 1;
+    config->send_buffer_size = DEFAULT_BUFFER_SIZE;
+    config->recv_buffer_size = DEFAULT_BUFFER_SIZE;
+    config->backlog = 5;
+#undef DEFAULT_BUFFER_SIZE
+    return 0;
+}
+
+void fini_config(struct frame_config* config)
+{
+    free(config->tcc_buffer);
+    config->tcc_buffer = NULL;
 }

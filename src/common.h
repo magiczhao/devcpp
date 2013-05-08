@@ -26,5 +26,11 @@
 #define DPATH_MAX 256
 #endif
 
+#include <sys/types.h>          /* See NOTES */
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <fcntl.h>
+
 #define array_size(arr) (sizeof(arr) / sizeof(*(arr)))
 #endif
