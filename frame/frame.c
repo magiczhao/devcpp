@@ -65,7 +65,7 @@ int create_listen_sock()
         error("listen failed:%s, backlog:%d", strerror(errno), svrconf.backlog);
         goto fail;
     }
-    return 0;
+    return fd;
 fail:
     if(fd != -1){
         close(fd);
@@ -105,15 +105,93 @@ int setup_signal()
     return 0;
 }
 
+void thread_timer(evutil_socket_t sock, short ev_flag, void* arg)
+{
+    //info("thread working!");
+    //TODO add timing here
+}
+
+void thread_client(evutil_socket_t sock, short ev_flag, void* arg)
+{
+    if(ev_flag == EV_READ){
+        info("can read now");
+    }else{
+        info("can write now");
+    }
+    return;
+}
+
+void thread_accept(evutil_socket_t sock, short ev_flag, void* arg)
+{
+    //info("new connections");
+    struct sockaddr_in addr;
+    struct event_base* base = (struct event_base*)arg;
+    socklen_t addrlen = sizeof(addr);
+    int fd = accept(sock, (struct sockaddr*)&addr, &addrlen);
+    if(fd == -1){
+        error("accept client faile:%s", strerror(errno));
+    }
+    struct event* evt_client = event_new(base, fd, EV_READ | EV_WRITE, thread_client, NULL);
+    event_add(evt_client, NULL);
+    event_base_loopbreak(base);
+}
+
 void* thread_loop(void* arg)
 {
+    int svrsock = (int) arg;
     struct event_base* base;
+    struct event* evt_timer = NULL;
+    struct event* evt_listen = NULL;
+    int ret = -1;
+    int is_leader = false;
     base = event_base_new();
     if(!base){
         error("init event base failed!");
-        return (void*) -1;
+        goto err;
     }
-    return NULL;
+    evt_timer = event_new(base, -1, EV_PERSIST, thread_timer, NULL);
+    evt_listen = event_new(base, svrsock, EV_READ | EV_PERSIST, thread_accept, base);
+    if((!evt_timer) || (!evt_listen)){
+        error("init svr sock or timer failed!");
+        goto err;
+    }
+    
+    struct timeval interval = {1, 0};
+    event_add(evt_timer, &interval);
+    while(!is_stop){
+        if(dlock_trylock(&thread_lock) == 0){
+            event_add(evt_listen, NULL);
+            is_leader = true;
+        }else{
+            is_leader = false;
+        }
+        int ret = event_base_loop(base, 0);
+        switch(ret){
+            case -1:
+                error("event base dispatch loop failed!");
+                break;
+            case 1:
+                info("no events!");
+                break;
+            default:
+                break;
+        }
+        info("looping!");
+        if(is_leader){
+            dlock_unlock(&thread_lock);
+            event_del(evt_listen);
+            is_leader = false;
+        }
+    }
+    ret = 0;
+err:
+    event_free(evt_timer);
+    event_free(evt_listen);
+    event_base_free(base);
+    evt_listen = NULL;
+    evt_timer = NULL;
+    base = NULL;
+    return (void*) ret;
 }
 
 int main(int argc, char** argv)
@@ -153,15 +231,16 @@ int main(int argc, char** argv)
         fprintf(stderr, "init socket failed\n");
         return -1;
     }
-    info("socket listened!");
+    info("socket listened, fd:%d!", sock);
     if(dlock_init(&thread_lock) != 0){
         error("init lock failed:%s", strerror(errno));
         return -1;
     }
+    info("init threads, total:%d thread", svrconf.threads);
     if(svrconf.threads > 0){
         workers = (pthread_t*) malloc(sizeof(pthread_t) * svrconf.threads);
         for(int i = 0; i < svrconf.threads; ++i){
-            if(pthread_create(workers + i, NULL, thread_loop, NULL) != 0){
+            if(pthread_create(workers + i, NULL, thread_loop, (void*)sock) != 0){
                 error("dispatch thread failed:%s", strerror(errno));
                 is_stop = true;
                 return -1;
@@ -170,12 +249,25 @@ int main(int argc, char** argv)
     }else{
         //create only one thread
         workers = (pthread_t*) malloc(sizeof(pthread_t));
-        if(pthread_create(workers, NULL, thread_loop, NULL) != 0){
+        if(pthread_create(workers, NULL, thread_loop, (void*)sock) != 0){
             error("dispatch thread failed:%s", strerror(errno));
             is_stop = true;
             return -1;
         }
     }
+    info("thread init ok!");
+    int thread_count = svrconf.threads > 0 ? svrconf.threads : 1;
+    //waiting all threads to finish
+    for(int i = 0; i < thread_count; ++i){
+        void *tresult;
+        if(pthread_join(workers[i], &tresult) != 0){
+            error("join thread:%d failed:%s", (pthread_t)workers[i], strerror(errno));
+        }
+    }
+    free(workers);
+    workers = NULL;
+    info("all thread exit safely!");
+    fini_log();
     fini_config(&svrconf);
     return 0;
 }
