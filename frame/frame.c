@@ -111,46 +111,125 @@ void thread_timer(evutil_socket_t sock, short ev_flag, void* arg)
     //TODO add timing here
 }
 
+int handle_read(int sock, struct connection* conn)
+{
+    int ret = recv(sock, buffer_position(&(conn->readbuf)), buffer_space(&(conn->readbuf)), 0);
+    switch(ret){
+        case 0://connection closed
+            info("connection closed by peer");
+            return -1;
+        case -1://error
+            if(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR){
+                return 0;
+            }else{
+                error("recv failed:%s", strerror(errno));
+                return -1;
+            }
+        default:
+            buffer_write(&(conn->readbuf), ret);
+    }
+    //test if package complete, if ok, process the package
+    return 0;
+}
+
+int handle_write(int sock, struct connection* conn)
+{
+    int ret = send(sock, buffer_position(&(conn->writebuf)), buffer_space(&(conn->writebuf)), 0);
+    switch(ret){
+        case 0://connection closed
+            info("connection closed by peer in write");
+            return -1;
+        case -1:
+            if(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR){
+                return 0;
+            }else{
+                error("send failed:%s", strerror(errno));
+                return -1;
+            }
+        default:
+            buffer_write(&(conn->writebuf), ret);
+    }
+    //test if package complete, if ok, process the package
+    return 0;
+}
+
+int handle_timeout(int sock, struct connection* conn)
+{
+    return 0;
+}
+
 void thread_client(evutil_socket_t sock, short ev_flag, void* arg)
 {
-    if(ev_flag == EV_READ){
-        info("can read now");
-    }else{
-        info("can write now");
+    int handle_result = 0;
+    struct connection* conn = (struct connection*)arg;
+    switch(ev_flag){
+        case EV_READ:
+            handle_result = handle_read(sock, conn);
+            break;
+        case EV_WRITE:
+            handle_result = handle_write(sock, conn);
+            break;
+        case EV_TIMEOUT:
+            handle_result = handle_timeout(sock, conn);
+            break;
+        default:
+            handle_result = -1;
+            error("unknown ev_flag occurs:%d", ev_flag);
+    }
+    switch(handle_result){
+        case 0://OK, then continue next
+        case 1://not complete
+        case -1://failed
+            break;
+        default:
+            break;
+            //unknown
     }
     return;
 }
 
 void thread_accept(evutil_socket_t sock, short ev_flag, void* arg)
 {
-    //info("new connections");
     struct sockaddr_in addr;
-    struct event_base* base = (struct event_base*)arg;
+    struct event_pool* ep = (struct event_pool*)arg;
     socklen_t addrlen = sizeof(addr);
     int fd = accept(sock, (struct sockaddr*)&addr, &addrlen);
     if(fd == -1){
         error("accept client faile:%s", strerror(errno));
+        return;
     }
-    struct event* evt_client = event_new(base, fd, EV_READ | EV_WRITE, thread_client, NULL);
+    struct connection* conn = get_connection(ep);
+    if(!conn){
+        error("not enough memory for handle this connection");
+        close(fd);
+        return;
+    }
+    struct event* evt_client = event_new(ep->base, fd, EV_READ | EV_WRITE, thread_client, conn);
+    conn->evt = evt_client;
     event_add(evt_client, NULL);
-    event_base_loopbreak(base);
+    event_base_loopbreak(ep->base);
 }
 
 void* thread_loop(void* arg)
 {
     int svrsock = (int) arg;
-    struct event_base* base;
+    //struct event_base* base;
     struct event* evt_timer = NULL;
     struct event* evt_listen = NULL;
     int ret = -1;
-    int is_leader = false;
-    base = event_base_new();
-    if(!base){
+    struct event_pool ep;
+    if(fixed_pool_init(&ep.mempool, 1000, 1000) != 0){
+        error("init memory pool failed!");
+        goto err;
+    }
+    ep.is_leader = false;
+    ep.base = event_base_new();
+    if(!ep.base){
         error("init event base failed!");
         goto err;
     }
-    evt_timer = event_new(base, -1, EV_PERSIST, thread_timer, NULL);
-    evt_listen = event_new(base, svrsock, EV_READ | EV_PERSIST, thread_accept, base);
+    evt_timer = event_new(ep.base, -1, EV_PERSIST, thread_timer, NULL);
+    evt_listen = event_new(ep.base, svrsock, EV_READ | EV_PERSIST, thread_accept, &ep);
     if((!evt_timer) || (!evt_listen)){
         error("init svr sock or timer failed!");
         goto err;
@@ -161,11 +240,11 @@ void* thread_loop(void* arg)
     while(!is_stop){
         if(dlock_trylock(&thread_lock) == 0){
             event_add(evt_listen, NULL);
-            is_leader = true;
+            ep.is_leader = true;
         }else{
-            is_leader = false;
+            ep.is_leader = false;
         }
-        int ret = event_base_loop(base, 0);
+        int ret = event_base_loop(ep.base, 0);
         switch(ret){
             case -1:
                 error("event base dispatch loop failed!");
@@ -176,21 +255,19 @@ void* thread_loop(void* arg)
             default:
                 break;
         }
-        info("looping!");
-        if(is_leader){
+        if(ep.is_leader){
             dlock_unlock(&thread_lock);
             event_del(evt_listen);
-            is_leader = false;
+            ep.is_leader = false;
         }
     }
     ret = 0;
 err:
     event_free(evt_timer);
     event_free(evt_listen);
-    event_base_free(base);
     evt_listen = NULL;
     evt_timer = NULL;
-    base = NULL;
+    event_pool_fini(&ep);
     return (void*) ret;
 }
 
