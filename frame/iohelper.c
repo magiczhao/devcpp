@@ -13,7 +13,17 @@ void event_pool_fini(struct event_pool* ep)
         event_base_free(ep->base);
         ep->base = NULL;
     }
+    if(ep->cfg){
+        event_config_free(ep->cfg);
+        ep->cfg = NULL;
+    }
     fixed_pool_fini(&ep->mempool);
+}
+
+void free_connection(struct connection* conn)
+{
+    struct event_pool* ep = conn->ep;
+    d_fp_free(&ep->mempool, conn);
 }
 
 struct connection* get_connection(struct event_pool* ep)
@@ -24,6 +34,8 @@ struct connection* get_connection(struct event_pool* ep)
     if(conn){
         //TODO init readbuf & writebuf here
         char* p = (char*) conn;
+        conn->ep = ep;
+        conn->evt = NULL;
         conn->readbuf.buffer = p + sizeof(struct connection);
         conn->readbuf.capacity = read_size;
         conn->readbuf.size = 0;

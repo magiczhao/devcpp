@@ -153,14 +153,21 @@ int handle_write(int sock, struct connection* conn)
     return 0;
 }
 
-int handle_timeout(int sock, struct connection* conn)
+int handle_init(int sock, struct connection* conn)
 {
     return 0;
 }
 
+int handle_timeout(int sock, struct connection* conn)
+{
+    return -1;
+}
+
 void thread_client(evutil_socket_t sock, short ev_flag, void* arg)
 {
+    info("aaa :%d", ev_flag);
     int handle_result = 0;
+    int fd = -1;
     struct connection* conn = (struct connection*)arg;
     switch(ev_flag){
         case EV_READ:
@@ -179,7 +186,16 @@ void thread_client(evutil_socket_t sock, short ev_flag, void* arg)
     switch(handle_result){
         case 0://OK, then continue next
         case 1://not complete
+            break;
         case -1://failed
+            info("free connection!");
+            fd = event_get_fd(conn->evt);
+            if(fd >= 0){
+                close(fd);
+            }
+            event_free(conn->evt);
+            conn->evt = NULL;
+            free_connection(conn);
             break;
         default:
             break;
@@ -204,10 +220,17 @@ void thread_accept(evutil_socket_t sock, short ev_flag, void* arg)
         close(fd);
         return;
     }
-    struct event* evt_client = event_new(ep->base, fd, EV_READ | EV_WRITE, thread_client, conn);
+    struct event* evt_client = event_new(ep->base, fd, EV_READ, thread_client, conn);
     conn->evt = evt_client;
-    event_add(evt_client, NULL);
-    event_base_loopbreak(ep->base);
+    if(handle_init(fd, conn) == 0){
+        event_add(evt_client, NULL);
+        event_base_loopbreak(ep->base);
+    }else{
+        error("init connection from client failed");
+        close(fd);
+        free_connection(conn);
+        return;
+    }
 }
 
 void* thread_loop(void* arg)
@@ -223,10 +246,22 @@ void* thread_loop(void* arg)
         goto err;
     }
     ep.is_leader = false;
-    ep.base = event_base_new();
+    ep.cfg = event_config_new();
+    if(!ep.cfg){
+        error("init event config failed!");
+        goto err;
+    }else{
+        event_config_require_features(ep.cfg, 0);
+    }
+    ep.base = event_base_new_with_config(ep.cfg);
     if(!ep.base){
         error("init event base failed!");
         goto err;
+    }else{
+        int feature = event_base_get_features(ep.base);
+        if(feature & EV_FEATURE_ET) info("edge triger used");
+        if(feature & EV_FEATURE_O1) info("feature 01 used");
+        if(feature & EV_FEATURE_FDS) info("feature fds used");
     }
     evt_timer = event_new(ep.base, -1, EV_PERSIST, thread_timer, NULL);
     evt_listen = event_new(ep.base, svrsock, EV_READ | EV_PERSIST, thread_accept, &ep);

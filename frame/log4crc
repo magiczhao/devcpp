@@ -9,7 +9,7 @@
     </config>
     <category name="root" priority="info" appender="file" />
     <category name="simple" priority="notice" appender="stdout" />
-    <rollingpolicy name="myrollingpolicy" type="sizewin" maxsize="10240" maxnum="10" />
+    <rollingpolicy name="myrollingpolicy" type="sizewin" maxsize="102400" maxnum="10" />
     <appender name="file" type="rollingfile" logdir="../log/" prefix="frame" layout="dated" rollingpolicy="myrollingpolicy" />
     <appender name="stdout" type="stream" layout="basic" />
     <layout name="basic" type="basic" />
