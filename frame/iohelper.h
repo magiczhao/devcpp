@@ -27,8 +27,13 @@ struct connection
     struct event_pool* ep;
     struct dbuffer readbuf;
     struct dbuffer writebuf;
+    struct timeval timeout;
+    int evt_mask;
 };
 
+#define enable_write(conn) do{(conn)->evt_mask |= EV_WRITE;}while(0)
+#define enable_read(conn) do{(conn)->evt_mask |= EV_READ;}while(0)
+#define enable_timeout(conn, tv) do{(conn)->evt_mask |= EV_TIMEOUT; (conn)->timeout = tv;}while(0)
 struct connection* get_connection(struct event_pool* ep);
 void free_connection(struct connection* conn);
 void event_pool_fini(struct event_pool*);

@@ -150,13 +150,12 @@ int handle_read(int sock, struct connection* conn)
             buffer_write(&(conn->readbuf), ret);
     }
     //test if package complete, if ok, process the package
-    /*
-    if(strchr(conn->readbuf.buffer, '\n')){
-        info("recv buffer:%s", conn->readbuf.buffer);
-        return 0;
+    int evt_mask = conn->evt_mask;
+    ret = cb.read_cb(sock, conn);
+    if(evt_mask != conn->evt_mask){
+        //event_assign
     }
-    */
-    return 1;
+    return ret;
 }
 
 int handle_write(int sock, struct connection* conn)

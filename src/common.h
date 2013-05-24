@@ -33,4 +33,13 @@
 #include <fcntl.h>
 
 #define array_size(arr) (sizeof(arr) / sizeof(*(arr)))
+
+#ifdef __cplusplus
+#define D_CPREFIX   extern "C"{
+#define D_CSURFIX   }
+#else
+#define D_CPREFIX 
+#define D_CSURFIX
+#endif
+
 #endif
