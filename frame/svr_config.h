@@ -12,12 +12,13 @@
 TCC_DEFINE(frame_config, {
     char* listen_ip;
     char* run_dir;
+    char* tcc_buffer;
+    char* cblib;
     int threads;
     int nodelay;
     int recv_buffer_size;
     int send_buffer_size;
     int backlog;
-    char* tcc_buffer;
     short listen_port;
 })
 

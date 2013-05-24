@@ -10,16 +10,38 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include "dlop.h"
 
 int is_stop = false;
 struct frame_config svrconf;
 dlock_t thread_lock;
+struct frame_callback cb;
 int init_svr_config(const char* file)
 {
     if(init_config(&svrconf) != 0){
         return -1;
     }
     if(load_config(file, &svrconf) != 0){
+        return -1;
+    }
+    return 0;
+}
+
+int init_callback()
+{
+    struct stat fst;
+    if(svrconf.cblib == NULL){
+        error("dll path not set!");
+        return -1;
+    }
+    if(stat(svrconf.cblib, &fst) != 0){
+        error("dll file not exist!");
+        return -1;
+    }
+    if(load_callback(svrconf.cblib, &cb) == -1){
+        error("load callback failed !");
         return -1;
     }
     return 0;
@@ -101,7 +123,6 @@ int setup_signal()
         error("set SIGCHLD handler failed:%s", strerror(errno));
         return -1;
     }
-    info("setup signals ok!");
     return 0;
 }
 
@@ -129,7 +150,13 @@ int handle_read(int sock, struct connection* conn)
             buffer_write(&(conn->readbuf), ret);
     }
     //test if package complete, if ok, process the package
-    return 0;
+    /*
+    if(strchr(conn->readbuf.buffer, '\n')){
+        info("recv buffer:%s", conn->readbuf.buffer);
+        return 0;
+    }
+    */
+    return 1;
 }
 
 int handle_write(int sock, struct connection* conn)
@@ -165,7 +192,6 @@ int handle_timeout(int sock, struct connection* conn)
 
 void thread_client(evutil_socket_t sock, short ev_flag, void* arg)
 {
-    info("aaa :%d", ev_flag);
     int handle_result = 0;
     int fd = -1;
     struct connection* conn = (struct connection*)arg;
@@ -186,9 +212,10 @@ void thread_client(evutil_socket_t sock, short ev_flag, void* arg)
     switch(handle_result){
         case 0://OK, then continue next
         case 1://not complete
+            event_add(conn->evt, NULL);
             break;
         case -1://failed
-            info("free connection!");
+            //info("free connection!");
             fd = event_get_fd(conn->evt);
             if(fd >= 0){
                 close(fd);
@@ -335,6 +362,9 @@ int main(int argc, char** argv)
     }
     if(init_log() != 0){
         fprintf(stderr, "init log failed\n");
+        return -1;
+    }
+    if(init_callback() != 0){
         return -1;
     }
     printf("config port:%d, config.ip:%s\n", svrconf.listen_port, svrconf.listen_ip);
