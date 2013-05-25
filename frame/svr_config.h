@@ -14,6 +14,7 @@ TCC_DEFINE(frame_config, {
     char* run_dir;
     char* tcc_buffer;
     char* cblib;
+    char* networklib;
     int threads;
     int nodelay;
     int recv_buffer_size;

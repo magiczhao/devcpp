@@ -18,6 +18,7 @@ int is_stop = false;
 struct frame_config svrconf;
 dlock_t thread_lock;
 struct frame_callback cb;
+struct net_util ncb;
 
 void thread_client(evutil_socket_t sock, short ev_flag, void* arg);
 /**
@@ -53,7 +54,7 @@ int init_svr_config(const char* file)
 int init_callback()
 {
     struct stat fst;
-    if(svrconf.cblib == NULL){
+    if(svrconf.cblib == NULL || svrconf.networklib == NULL){
         error("dll path not set!");
         return -1;
     }
@@ -61,11 +62,27 @@ int init_callback()
         error("dll file not exist!");
         return -1;
     }
+
     if(load_callback(svrconf.cblib, &cb) == -1){
         error("load callback failed !");
         return -1;
     }
+    
+    if(stat(svrconf.networklib, &fst) != 0){
+        error("network dll not exist!");
+        return -1;
+    }
+    if(load_net_util(svrconf.networklib, &ncb) == -1){
+        error("load network callback failed!");
+        return -1;
+    }
     return 0;
+}
+
+void finish_callback()
+{
+    fini_callback(&cb);
+    fini_net_util(&ncb);
 }
 
 int create_listen_sock()
@@ -130,6 +147,7 @@ void handle_child(int sig)
     pid_t child;
     int status;
     while((child = waitpid(-1, &status, WNOHANG)) > 0);
+    signal(SIGCHLD, handle_child);
 }
 
 int setup_signal()
@@ -179,9 +197,10 @@ int handle_read(int sock, struct connection* conn)
             buffer_write(&(conn->readbuf), ret);
     }
     //test if package complete, if ok, process the package
-    int evt_mask = conn->evt_mask;
-    ret = cb.read_cb(sock, conn);
-    connection_set_return_on_error(conn, sock, evt_mask);
+    if(ncb.package_complete(conn->readbuf.buffer, conn->readbuf.size)){
+        info("package complete!");
+        ret = cb.read_cb(sock, conn);
+    }
     return ret;
 }
 
@@ -206,9 +225,7 @@ int handle_write(int sock, struct connection* conn)
             buffer_write(&(conn->writebuf), ret);
     }
     //test if package complete, if ok, process the package
-    int evt_mask = conn->evt_mask;
     ret = cb.write_cb(sock, conn);
-    connection_set_return_on_error(conn, sock, evt_mask);
     return ret;
 }
 
@@ -225,17 +242,16 @@ int handle_init(int sock, struct connection* conn)
  */
 int handle_timeout(int sock, struct connection* conn)
 {
-    int evt_mask = conn->evt_mask;
     int ret = cb.timeout_cb(sock, conn);
-    connection_set_return_on_error(conn, sock, evt_mask);
     return ret;
 }
 
 void thread_client(evutil_socket_t sock, short ev_flag, void* arg)
 {
+    info("in client, flag:%d", ev_flag);
     int handle_result = 0;
-    int fd = -1;
     struct connection* conn = (struct connection*)arg;
+    int evt_mask = conn->evt_mask;
     switch(ev_flag){
         case EV_READ:
             handle_result = handle_read(sock, conn);
@@ -251,23 +267,32 @@ void thread_client(evutil_socket_t sock, short ev_flag, void* arg)
             error("unknown ev_flag occurs:%d", ev_flag);
     }
     switch(handle_result){
+        case -1://failed
+            goto err;
+            break;
         case 0://OK, then continue next
         case 1://not complete
-            event_add(conn->evt, NULL);
-            break;
-        case -1://failed
-            fd = event_get_fd(conn->evt);
-            if(fd >= 0){
-                close(fd);
+        default://unknown
+            if(evt_mask != conn->evt_mask){
+                if(event_assign(conn->evt, conn->ep->base, sock, conn->evt_mask, thread_client, conn) == 0){}
+                else{
+                    error("re_assign event failed, mask:%d", conn->evt_mask);
+                    goto err;
+                }
             }
-            event_free(conn->evt);
-            conn->evt = NULL;
-            free_connection(conn);
-            break;
-        default:
-            break;
-            //unknown
+            if(event_add(conn->evt, &conn->timeout) == 0){}
+            else{
+                error("add event to base failed");
+                goto err;
+            }
     }
+    return;
+err:
+    cb.fini_cb(sock, conn);
+    event_free(conn->evt);
+    conn->evt = NULL;
+    free_connection(conn);
+    close(sock);
     return;
 }
 
@@ -290,7 +315,8 @@ void thread_accept(evutil_socket_t sock, short ev_flag, void* arg)
         close(fd);
         return;
     }
-    struct event* evt_client = event_new(ep->base, fd, EV_READ, thread_client, conn);
+    conn->evt_mask = EV_READ;
+    struct event* evt_client = event_new(ep->base, fd, conn->evt_mask, thread_client, conn);
     conn->evt = evt_client;
     int evt_mask = conn->evt_mask;
     if(handle_init(fd, conn) == 0){ //in handle_init, user may change the evt_mask
@@ -298,25 +324,26 @@ void thread_accept(evutil_socket_t sock, short ev_flag, void* arg)
             if(event_assign(conn->evt, ep->base, fd, conn->evt_mask, thread_client, conn) == 0){}
             else{
                 error("assign event failed, mask:%d", conn->evt_mask);
-                close(fd);
-                free_connection(conn);
-                return;
-            }
-            if(event_add(conn->evt, &conn->timeout) == 0){}
-            else{
-                error("add event to base failed");
-                close(fd);
-                free_connection(conn);
-                return;
+                goto err;
             }
         }
+        info("add to event_base");
         event_base_loopbreak(ep->base);
+        if(event_add(conn->evt, &conn->timeout) == 0){}
+        else{
+            error("add event to base failed");
+            goto err;
+        }
     }else{
         error("init connection from client failed");
-        close(fd);
-        free_connection(conn);
-        return;
+        goto err;
     }
+    return;
+err:
+    event_free(conn->evt);
+    conn->evt = NULL;
+    free_connection(conn);
+    close(fd);
 }
 
 /**
@@ -428,6 +455,9 @@ int main(int argc, char** argv)
         fprintf(stderr, "init log failed\n");
         return -1;
     }
+    if(setup_signal() != 0){
+        return -1;
+    }
     if(init_callback() != 0){
         return -1;
     }
@@ -473,6 +503,7 @@ int main(int argc, char** argv)
     free(workers);
     workers = NULL;
     info("all thread exit safely!");
+    finish_callback();
     fini_log();
     fini_config(&svrconf);
     return 0;
