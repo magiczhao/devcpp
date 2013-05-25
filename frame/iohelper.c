@@ -34,14 +34,18 @@ struct connection* get_connection(struct event_pool* ep)
     if(conn){
         //TODO init readbuf & writebuf here
         char* p = (char*) conn;
-        conn->ep = ep;
         conn->evt = NULL;
+        conn->ep = ep;
         conn->readbuf.buffer = p + sizeof(struct connection);
         conn->readbuf.capacity = read_size;
         conn->readbuf.size = 0;
         conn->writebuf.buffer = p + sizeof(struct connection) + read_size;
         conn->writebuf.capacity = write_size;
         conn->writebuf.size = 0;
+        conn->timeout.tv_sec = 0;
+        conn->timeout.tv_usec = 0;
+        conn->user_arg = NULL;
+        conn->evt_mask = EV_READ;
     }
     return conn;
 }

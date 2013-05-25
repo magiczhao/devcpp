@@ -18,6 +18,24 @@ int is_stop = false;
 struct frame_config svrconf;
 dlock_t thread_lock;
 struct frame_callback cb;
+
+void thread_client(evutil_socket_t sock, short ev_flag, void* arg);
+#define connection_set_return_on_error(conn, fd, origflag)    do{                 \
+        if((conn)->evt_mask != (origflag)){                                             \
+            if(event_assign((conn)->evt, (conn)->ep->base, (fd), (conn)->evt_mask,      \
+                thread_client, (conn)) == 0){}                                          \
+            else{                                                                       \
+                error("reset event listen failed");                                     \
+                return -1;                                                              \
+            }                                                                           \
+        }                                                                               \
+        if(event_add((conn)->evt, &(conn)->timeout) == 0){}                             \
+        else{                                                                           \
+            error("add event failed");                                                  \
+            return -1;                                                                  \
+        }                                                                               \
+    }while(0)
+
 int init_svr_config(const char* file)
 {
     if(init_config(&svrconf) != 0){
@@ -152,9 +170,7 @@ int handle_read(int sock, struct connection* conn)
     //test if package complete, if ok, process the package
     int evt_mask = conn->evt_mask;
     ret = cb.read_cb(sock, conn);
-    if(evt_mask != conn->evt_mask){
-        //event_assign
-    }
+    connection_set_return_on_error(conn, sock, evt_mask);
     return ret;
 }
 
@@ -176,17 +192,23 @@ int handle_write(int sock, struct connection* conn)
             buffer_write(&(conn->writebuf), ret);
     }
     //test if package complete, if ok, process the package
-    return 0;
+    int evt_mask = conn->evt_mask;
+    ret = cb.write_cb(sock, conn);
+    connection_set_return_on_error(conn, sock, evt_mask);
+    return ret;
 }
 
 int handle_init(int sock, struct connection* conn)
 {
-    return 0;
+    return cb.init_cb(sock, conn);
 }
 
 int handle_timeout(int sock, struct connection* conn)
 {
-    return -1;
+    int evt_mask = conn->evt_mask;
+    int ret = cb.timeout_cb(sock, conn);
+    connection_set_return_on_error(conn, sock, evt_mask);
+    return ret;
 }
 
 void thread_client(evutil_socket_t sock, short ev_flag, void* arg)
@@ -214,7 +236,6 @@ void thread_client(evutil_socket_t sock, short ev_flag, void* arg)
             event_add(conn->evt, NULL);
             break;
         case -1://failed
-            //info("free connection!");
             fd = event_get_fd(conn->evt);
             if(fd >= 0){
                 close(fd);
@@ -248,8 +269,24 @@ void thread_accept(evutil_socket_t sock, short ev_flag, void* arg)
     }
     struct event* evt_client = event_new(ep->base, fd, EV_READ, thread_client, conn);
     conn->evt = evt_client;
+    int evt_mask = conn->evt_mask;
     if(handle_init(fd, conn) == 0){
-        event_add(evt_client, NULL);
+        if(evt_mask != conn->evt_mask){
+            if(event_assign(conn->evt, ep->base, fd, conn->evt_mask, thread_client, conn) == 0){}
+            else{
+                error("assign event failed, mask:%d", conn->evt_mask);
+                close(fd);
+                free_connection(conn);
+                return;
+            }
+            if(event_add(conn->evt, &conn->timeout) == 0){}
+            else{
+                error("add event to base failed");
+                close(fd);
+                free_connection(conn);
+                return;
+            }
+        }
         event_base_loopbreak(ep->base);
     }else{
         error("init connection from client failed");
@@ -299,6 +336,7 @@ void* thread_loop(void* arg)
     struct timeval interval = {1, 0};
     event_add(evt_timer, &interval);
     while(!is_stop){
+        info("loop again!");
         if(dlock_trylock(&thread_lock) == 0){
             event_add(evt_listen, NULL);
             ep.is_leader = true;

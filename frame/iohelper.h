@@ -28,6 +28,7 @@ struct connection
     struct dbuffer readbuf;
     struct dbuffer writebuf;
     struct timeval timeout;
+    void * user_arg;
     int evt_mask;
 };
 
