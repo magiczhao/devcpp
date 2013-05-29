@@ -20,6 +20,9 @@ dlock_t thread_lock;
 struct frame_callback cb;
 
 void thread_client(evutil_socket_t sock, short ev_flag, void* arg);
+/**
+ * if modified, reset event, and readd to event_base
+ */
 #define connection_set_return_on_error(conn, fd, origflag)    do{                 \
         if((conn)->evt_mask != (origflag)){                                             \
             if(event_assign((conn)->evt, (conn)->ep->base, (fd), (conn)->evt_mask,      \
@@ -73,23 +76,27 @@ int create_listen_sock()
         error("create socket failed: %s", strerror(errno));
         goto fail;
     }
-    if(set_nonblock(fd) != 0){
+    if(set_nonblock(fd) != 0){ //set nonblock
         error("set nonblock failed:%s", strerror(errno));
         goto fail;
     }
     if(setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse_addr, sizeof(reuse_addr)) != 0){
+        //set reuse addr
         error("set reuseaddr failed:%s", strerror(errno));
         goto fail;
     }
     if(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &svrconf.nodelay, sizeof(svrconf.nodelay)) != 0){
+        //disable nagle algorithm
         error("set nodelay failed:%s", strerror(errno));
         goto fail;
     }
     if(setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &svrconf.send_buffer_size, sizeof(svrconf.send_buffer_size)) != 0){
+        //set send buffer size
         error("set send_buffer_size failed:%s", strerror(errno));
         goto fail;
     }
     if(setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &svrconf.recv_buffer_size, sizeof(svrconf.recv_buffer_size)) != 0){
+        //set recv buffer size
         error("set recv_buffer_size failed:%s", strerror(errno));
         goto fail;
     }
@@ -97,11 +104,11 @@ int create_listen_sock()
     svraddr.sin_family = AF_INET;
     svraddr.sin_port = htons(svrconf.listen_port);
     svraddr.sin_addr.s_addr = inet_addr(svrconf.listen_ip);
-    if(bind(fd, (struct sockaddr*)&svraddr, sizeof(svraddr)) != 0){
+    if(bind(fd, (struct sockaddr*)&svraddr, sizeof(svraddr)) != 0){ //bind to addr
         error("bind addr[%s:%d] failed:%s", svrconf.listen_ip, svrconf.listen_port, strerror(errno));
         goto fail;
     }
-    if(listen(fd, svrconf.backlog) != 0){
+    if(listen(fd, svrconf.backlog) != 0){ //begin listen
         error("listen failed:%s, backlog:%d", strerror(errno), svrconf.backlog);
         goto fail;
     }
@@ -150,6 +157,10 @@ void thread_timer(evutil_socket_t sock, short ev_flag, void* arg)
     //TODO add timing here
 }
 
+/**
+ * recv package from client, then check if the package complete
+ * if complete, process the package
+ */
 int handle_read(int sock, struct connection* conn)
 {
     int ret = recv(sock, buffer_position(&(conn->readbuf)), buffer_space(&(conn->readbuf)), 0);
@@ -174,6 +185,9 @@ int handle_read(int sock, struct connection* conn)
     return ret;
 }
 
+/**
+ * send package to client
+ */
 int handle_write(int sock, struct connection* conn)
 {
     int ret = send(sock, buffer_position(&(conn->writebuf)), buffer_space(&(conn->writebuf)), 0);
@@ -198,11 +212,17 @@ int handle_write(int sock, struct connection* conn)
     return ret;
 }
 
+/**
+ * init the connection, add user defined variable here
+ */
 int handle_init(int sock, struct connection* conn)
 {
     return cb.init_cb(sock, conn);
 }
 
+/**
+ * process on EV_TIMEOUT occurs
+ */
 int handle_timeout(int sock, struct connection* conn)
 {
     int evt_mask = conn->evt_mask;
@@ -251,6 +271,9 @@ void thread_client(evutil_socket_t sock, short ev_flag, void* arg)
     return;
 }
 
+/**
+ * accept client connection, setup event callback & add to event_base
+ */
 void thread_accept(evutil_socket_t sock, short ev_flag, void* arg)
 {
     struct sockaddr_in addr;
@@ -270,7 +293,7 @@ void thread_accept(evutil_socket_t sock, short ev_flag, void* arg)
     struct event* evt_client = event_new(ep->base, fd, EV_READ, thread_client, conn);
     conn->evt = evt_client;
     int evt_mask = conn->evt_mask;
-    if(handle_init(fd, conn) == 0){
+    if(handle_init(fd, conn) == 0){ //in handle_init, user may change the evt_mask
         if(evt_mask != conn->evt_mask){
             if(event_assign(conn->evt, ep->base, fd, conn->evt_mask, thread_client, conn) == 0){}
             else{
@@ -296,10 +319,14 @@ void thread_accept(evutil_socket_t sock, short ev_flag, void* arg)
     }
 }
 
+/**
+ * thread main function, in the main loop:
+ * 1. trylock the listen fd, if get the lock, become the leader
+ * 2. run event_loop()
+ */
 void* thread_loop(void* arg)
 {
     int svrsock = (int) arg;
-    //struct event_base* base;
     struct event* evt_timer = NULL;
     struct event* evt_listen = NULL;
     int ret = -1;
