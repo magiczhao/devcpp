@@ -13,6 +13,7 @@ struct dbuffer
 #define buffer_position(buf) ((buf)->buffer + (buf)->size)
 #define buffer_space(buf) ((buf)->capacity - (buf)->size)
 #define buffer_write(buf, val) do{(buf)->size += val;}while(0)
+#define buffer_clear(buf)  do{(buf)->size = 0;}while(0)
 struct event_pool
 {
     struct fixed_dmem_pool mempool;

@@ -6,6 +6,7 @@ int handle_read(int sock, struct connection* conn)
     memcpy(conn->writebuf.buffer, conn->readbuf.buffer, conn->readbuf.size);
     conn->writebuf.size = 0;
     conn->writebuf.capacity = conn->readbuf.size;
+    buffer_clear((&conn->readbuf));
     enable_write(conn);
     return 0;
 }

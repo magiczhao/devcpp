@@ -197,8 +197,8 @@ int handle_read(int sock, struct connection* conn)
             buffer_write(&(conn->readbuf), ret);
     }
     //test if package complete, if ok, process the package
-    if(ncb.package_complete(conn->readbuf.buffer, conn->readbuf.size)){
-        info("package complete!");
+    int packlen = ncb.package_complete(conn->readbuf.buffer, conn->readbuf.size);
+    if(packlen > 0){
         ret = cb.read_cb(sock, conn);
     }
     return ret;
@@ -242,8 +242,7 @@ int handle_init(int sock, struct connection* conn)
  */
 int handle_timeout(int sock, struct connection* conn)
 {
-    int ret = cb.timeout_cb(sock, conn);
-    return ret;
+    return cb.timeout_cb(sock, conn);
 }
 
 void thread_client(evutil_socket_t sock, short ev_flag, void* arg)
@@ -327,7 +326,6 @@ void thread_accept(evutil_socket_t sock, short ev_flag, void* arg)
                 goto err;
             }
         }
-        info("add to event_base");
         event_base_loopbreak(ep->base);
         if(event_add(conn->evt, &conn->timeout) == 0){}
         else{
