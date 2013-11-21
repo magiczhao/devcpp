@@ -61,14 +61,14 @@ Block* BlockManager::get(int blockid, int flag /*= 0x01*/)
     int bytes = pread(_file, buffer, BLOCK_SIZE, offset);
     if(bytes == BLOCK_SIZE){
         Block* blk = new Block(blockid, buffer, this);
-        trace("bytes read:%d, %d", bytes, blk->is_dir());
+        trace("bytes read:%d, blockid:%d", bytes, blockid);
         if(blk){
             return blk;
         }else{
             ::free(buffer);
         }
     }else if(bytes >= 0){
-        trace("bytes read:%d", bytes);
+        trace("bytes read:%d, block_id:%d", bytes, blockid);
         Block* blk = new Block(blockid, buffer, this);
         blk->init(flag);
         return blk;
@@ -108,7 +108,8 @@ bool Block::init(int flag)
 
 bool Block::remove(int position)
 {
-    if(_block->body.dir.count > 0){
+    trace("block begin id:%d, remove position:%d, size:%d, remain:%d", _blockid, position, size(), remain());
+    if(_block->body.dir.count > position && position >= 0){
         int moved_size = _block->body.dir.items[position].size;
         int moved_start = _block->body.dir.items[position].start;
         for(int i = position + 1; i < _block->body.dir.count - 1; ++i){
@@ -117,16 +118,20 @@ bool Block::remove(int position)
             _block->body.dir.items[i].start += moved_size;
         }
         int last_start = _block->body.dir.items[_block->body.dir.count - 1].start;
-            memmove(data_at(last_start + moved_size), 
-                    data_at(last_start), 
-                    moved_start - last_start);
+        memmove(data_at(last_start + moved_size), 
+            data_at(last_start), 
+            moved_start - last_start);
         _block->body.dir.count -= 1;
+        _block->body.dir.remain += moved_size + sizeof(struct BlockItem);
+        changed(true);
     }
+    trace("block begin id:%d, remove position:%d, size:%d, remain:%d", _blockid, position, size(), remain());
     return true;
 }
 
 int Block::insert(const char* value, int size)
 {
+    trace("inside insert, blockId:%d, size:%d, remain:%d", _blockid, this->size(), remain());
     if(block_is_dir(_block) && remain() > (size + sizeof(struct BlockItem))){
         int index = _block->body.dir.count;
         int start = BLOCK_SIZE - size;

@@ -28,15 +28,15 @@ TEST(SimpleHash, MultiInsert)
     char buffer[16 * 1024];
     char key[128];
     char value[16 * 1024];
+    SHashTable stable("./tmp_multi_test.dat", true);
     for(int i = 0; i < 1024; ++i){
         snprintf(key, sizeof(key), "/root/%d.dat.value", i);
         snprintf(buffer, sizeof(buffer), "this is a value part of key %d\n", i);
-        SHashTable stable("./tmp_multi_test.dat", true);
         Buffer kbuf(key, strlen(key));
         Buffer vbuf(value, sizeof(value));
         Buffer orig(buffer, sizeof(buffer) - 1);
-        ASSERT_TRUE(stable.insert(kbuf, orig));
         printf("init value:%d\n", i);
+        ASSERT_TRUE(stable.insert(kbuf, orig));
         ASSERT_TRUE(stable.search(kbuf, &vbuf));
         EXPECT_EQ(strncmp(vbuf(), orig(), orig.size()), 0);
     }
