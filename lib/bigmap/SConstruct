@@ -1,0 +1,20 @@
+
+syspath = "/home/demon/local/"
+SharedLibrary("bigmap++",['block.cc','maped_file.cc','segment.cc', 'log.cc'], CXXFLAGS="-g")
+Program("block_test", 
+    ["block_test.cc"], 
+    CXXFLAGS="-I%s/include -g" % (syspath),
+    LIBPATH=["%s/lib" % (syspath), "."],
+    LIBS=["gtest", "bigmap++", "pthread"])
+
+Program("segment_test", 
+    ["segment_test.cc"], 
+    CXXFLAGS="-I%s/include -g" % (syspath),
+    LIBPATH=["%s/lib" % (syspath), "."],
+    LIBS=["gtest", "bigmap++", "pthread"])
+
+Program("simple_hash_test",
+    ["simple_hash_test.cc"],
+    CXXFLAGS="-I%s/include -g" % (syspath),
+    LIBPATH=["%s/lib" % (syspath), "."],
+    LIBS=["gtest", "bigmap++", "pthread"])
