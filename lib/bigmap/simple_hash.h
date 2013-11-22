@@ -16,19 +16,36 @@ namespace bigmap
 
 /**
  * Bucket的结构如下：
- * 数量[0]
+ * 当前采用的位，当前的block数量，每一个桶对应的blockid
+ * 目前的设计里，一个block对应一个id
  */
 class Buckets
 {
     public:
+        /**
+         * buffer对应map进来的内存头部，保存整个目录信息的地方,结构如上所述
+         * size 对应于内存的大小，对应到_size字段，需要减去前面所用到的
+         */
         Buckets(unsigned int* buffer, int size) : _shift(buffer), _blocks(buffer + 1), 
-            _buffer(buffer + 2), _size(size - 1)
+            _buffer(buffer + 2), _size(size - 16)
         {}
         ~Buckets(){}
         
+        /** 
+         * shift表示目前hash后使用的bit数量，bucket的数量就是2^shift()
+         */
         unsigned int shift() const {return *_shift;}
+        /**
+         * size表示已经使用的bucket数量
+         */
         unsigned int size() const {return 1 << (*_shift);}
+        /**
+         * blocks表示当前已经分配出去的block数量
+         */
         unsigned int blocks() const {return *_blocks;}
+        /**
+         * 分配一个blockid
+         */
         unsigned int occupy_block() 
         {
             unsigned int blockid = *_blocks;
@@ -50,61 +67,31 @@ class Buckets
             *_blocks = 2;
         }
 
+        /**
+         * 把bucket的数量扩展一倍，新扩充的bucket指向原来hash & shift()的情况下对应的bucket
+         * 如果之前的那个bucket满了再进行扩充
+         */
         bool extend()
         {
             int buckets = 1 << (*_shift);
             if(buckets * 2 < _size){
                 *_shift += 1;
                 int scale = 1 << (*_shift);
-                trace("begin:%d, scale:%d", buckets, scale);
-                for(int i = 0; i < buckets; ++i){
-                    trace("_buffer[%d]=%d, sibling:%d", i + buckets, _buffer[i], i);
+                //trace("begin:%d, scale:%d", buckets, scale);
+                for(int i = 0; i < buckets; ++i){ //初始化新的bucket
+                    //trace("_buffer[%d]=%d, sibling:%d", i + buckets, _buffer[i], i);
                     _buffer[i + buckets] = _buffer[i];
                 }
                 return true;
             }
             return false;
         }
-
-        unsigned int bucket(int b) const {return _buffer[b];}
-        void fill(int b) {_buffer[b] = occupy_block();}
-
-        /*
-        unsigned int buddy(unsigned int bucket)
-        {
-            int target = bucket + (1 << (_buffer[0] - 1));
-            if(is_inited(target)){
-                if(extend()){
-                    target = bucket + (1 << (_buffer[0] - 1));
-                }
-                trace("target %d ,%d already inited, extend to %d", target, _buffer[target], _buffer[0]);
-            }
-            return target;
-        }
-
-        bool is_inited(unsigned int bucket) const 
-        {
-            if(bucket < _size){
-                return _buffer[bucket] == bucket - 1;
-            }
-            return false;
-        }
         
-        unsigned int find_init(unsigned int h)
-        {
-            for(unsigned int i = _buffer[0]; i > 0; --i){
-                unsigned int bucket = h & ((1 << i) - 1);
-                trace("bucket id:%d, i:%d, _buffer[0]:%d", bucket, i, _buffer[0]);
-                if(is_inited(bucket + 1)){
-                    return bucket + 1;
-                }
-            }
-            trace("i not found for h[%u], size:%d", h, _buffer[0]);
-            assert(false);
-            return -1;
-        }
-
-        */
+        /** 取得对应bucket的blockid */
+        unsigned int bucket(int b) const {return _buffer[b];}
+        /** 给一个bucket分配对应的blockid */
+        void fill(int b) {_buffer[b] = occupy_block();}
+        /** 计算hash值然后按照shift对应的取相应的bit出来 */
         int hash(unsigned int h) const { return h & ((1 << (*_shift)) - 1); }
     private:
         unsigned int* _shift;
@@ -113,13 +100,18 @@ class Buckets
         int _size;
 };
 
+/** 存储在block中的一个kv对 */
 struct KVPair
 {
+    /** key的长度 */
     int key_size;
+    /** value的长度 */ 
     int value_size;
+    /** key value保存在这里 */
     char buffer[0];
 };
 
+/** 一些KVPair的工具函数 */
 inline char* keyptr(struct KVPair& pair)
 {
     return pair.buffer;
@@ -140,6 +132,7 @@ inline int valuesize(struct KVPair& pair)
     return pair.value_size;
 }
 
+/** 字符串hash的类 */
 class StrHash
 {
     public:
@@ -195,6 +188,7 @@ class StrHash
         } 
 };
 
+/** 字符串相等判断的类 */
 class KVEqual
 {
     public:
@@ -234,10 +228,12 @@ class SimpleHash
 
         ~SimpleHash()
         {}
-
+        /** 在hash表中插入一条记录 */
         bool insert(Buffer& key, Buffer& value);
+        /** 在hash表中读取一条记录,结果保存在value中，这个value的size要设置成总共可用的内存大小 */
         bool search(Buffer& key, Buffer* value);
     private:
+        /** 把KVPair中的value部分拷贝到value中 */
         bool copy_value(Buffer& buffer, Buffer* value);
         bool extend_block();
         bool insert_into_block(int bucket, Buffer& data);
