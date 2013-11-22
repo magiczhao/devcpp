@@ -35,7 +35,6 @@ TEST(SimpleHash, MultiInsert)
         Buffer kbuf(key, strlen(key));
         Buffer vbuf(value, sizeof(value));
         Buffer orig(buffer, sizeof(buffer) - 1);
-        printf("init value:%d\n", i);
         ASSERT_TRUE(stable.insert(kbuf, orig));
         ASSERT_TRUE(stable.search(kbuf, &vbuf));
         EXPECT_EQ(strncmp(vbuf(), orig(), orig.size()), 0);

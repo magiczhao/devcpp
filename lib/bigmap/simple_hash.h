@@ -21,22 +21,33 @@ namespace bigmap
 class Buckets
 {
     public:
-        Buckets(unsigned int* buffer, int size) : _shift(buffer), _buffer(buffer + 1), _size(size - 1)
+        Buckets(unsigned int* buffer, int size) : _shift(buffer), _blocks(buffer + 1), 
+            _buffer(buffer + 2), _size(size - 1)
         {}
         ~Buckets(){}
+        
+        unsigned int shift() const {return *_shift;}
+        unsigned int size() const {return 1 << (*_shift);}
+        unsigned int blocks() const {return *_blocks;}
+        unsigned int occupy_block() 
+        {
+            unsigned int blockid = *_blocks;
+            *_blocks += 1;
+            return blockid;
+        }
 
-        int size() const {return 1 << (*_shift);}
         void init()
         {
             trace("Buckets init size:%d", _size);
             *_shift = 1;
             for(int i = 0; i < _size; ++i){
-                _buffer[i] = -1;
+                _buffer[i]= -1;
             }
 
             for(int i = 0; i <= (1<<(*_shift)); ++i){
-                _buffer[i] = i;
+                _buffer[i]= i;
             }
+            *_blocks = 2;
         }
 
         bool extend()
@@ -45,16 +56,18 @@ class Buckets
             if(buckets * 2 < _size){
                 *_shift += 1;
                 int scale = 1 << (*_shift);
-                for(int i = buckets; i < scale; ++i){
-                    _buffer[i] = (i >> 1);
+                trace("begin:%d, scale:%d", buckets, scale);
+                for(int i = 0; i < buckets; ++i){
+                    trace("_buffer[%d]=%d, sibling:%d", i + buckets, _buffer[i], i);
+                    _buffer[i + buckets] = _buffer[i];
                 }
                 return true;
             }
             return false;
         }
 
-        int bucket(int b) const {return _buffer[b];}
-        int fill(int b) {_buffer[b] = b;}
+        unsigned int bucket(int b) const {return _buffer[b];}
+        void fill(int b) {_buffer[b] = occupy_block();}
 
         /*
         unsigned int buddy(unsigned int bucket)
@@ -95,6 +108,7 @@ class Buckets
         int hash(unsigned int h) const { return h & ((1 << (*_shift)) - 1); }
     private:
         unsigned int* _shift;
+        unsigned int* _blocks;
         unsigned int* _buffer;
         int _size;
 };
@@ -208,6 +222,12 @@ class SimpleHash
             _blk_mgr.init(filename);
             if(is_init){
                 _buckets.init();
+                unsigned int shift = _buckets.shift();
+                for(int i = 0; i < _buckets.blocks(); ++i){
+                    Block* blk = _blk_mgr.get(i);
+                    BlockAutoPtr ptr(blk);
+                    blk->level(shift);
+                }
             }
             _blk_mgr.init(filename);
         }
@@ -222,6 +242,13 @@ class SimpleHash
         bool extend_block();
         bool insert_into_block(int bucket, Buffer& data);
         bool fill_bucket(int bucket);
+        bool need_extend(int blockid)
+        {
+            Block* blk = _blk_mgr.get(blockid);
+            BlockAutoPtr ptr(blk);
+            trace("blk->level:%d, shift:%d", blk->level(), _buckets.shift());
+            return blk->level() == _buckets.shift();
+        }
 
         void key_part(char* buffer, int size, Buffer* buf)
         {
@@ -245,22 +272,29 @@ bool SimpleHash<HashFunc, EqualFunc, HeaderSize>::fill_bucket(int bucket)
     int blockid = _buckets.bucket(bucket);
     _buckets.fill(bucket);
     int nblockid = _buckets.bucket(bucket);
+    trace("fill_bucket for bucket:%d, from :%d to:%d", bucket, blockid, nblockid);
     Block* target = _blk_mgr.get(nblockid);
     Block* old = _blk_mgr.get(blockid);
     BlockAutoPtr tgtptr(target);
     BlockAutoPtr oldptr(old);
+
+    target->level(_buckets.shift());
+    old->level(old->level() + 1);
     if(!target || !old){
         return false;
     }
     for(Block::Iterator it = old->begin(); it != old->end();){
         Buffer key;
         key_part(it(), it.size(), &key);
+        //trace("key:%s, %d, %d, %d", key(), key.size(), (int)it(), it.size());
         unsigned int h = _buckets.hash(_hash(key));
         if(h == bucket){
             if(target->insert(it(), it.size()) == -1){
                 return false;
             }
             old->remove(it.position());
+        }else{
+            ++it;
         }
     }
     return true;
@@ -297,12 +331,12 @@ bool SimpleHash<HashFunc, EqualFunc, HeaderSize>::insert(Buffer& key, Buffer& va
         memcpy(valueptr(*kv), value(), value.size());
         Buffer data_in_block(total, total_size);
         bool res = insert_into_block(blockid, data_in_block);
-        trace("about to insert into block:%d, res:%d", bucket - 1, res);
+        trace("about to insert into block:%d, res:%d", bucket, res);
         if(res){
-            trace("insert into block:%d", bucket - 1);
+            trace("insert into block:%d", bucket);
             return true;
         }else{
-            if(bucket != blockid){  //现在是借来的空间，分配实际空间
+            if(!need_extend(blockid)){  //现在是借来的空间，分配实际空间
                 trace("filling the bucket %d", blockid);
                 fill_bucket(bucket);
                 blockid = _buckets.bucket(bucket);
@@ -328,7 +362,7 @@ bool SimpleHash<HashFunc, EqualFunc, HeaderSize>::copy_value(Buffer& buffer, Buf
     char* b = (*value)();
     struct KVPair* kv = (struct KVPair*) buffer();
     if(valuesize(*kv) < value->size()){
-        memcpy(b, valueptr(*kv), buffer.size());
+        memcpy(b, valueptr(*kv), valuesize(*kv));
         value->size(valuesize(*kv));
         return true;
     }

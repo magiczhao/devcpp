@@ -45,6 +45,7 @@ struct BlockDir
 {
     uint32_t count;
     uint32_t remain;
+    uint32_t level;
     struct BlockItem items[0];
 };
 
@@ -76,6 +77,7 @@ struct BlockHead
 
 #define block_dir_size(dir) (sizeof(struct BlockDir) + sizeof(struct BlockItem) * ((dir)->count))
 #define block_dir_head_size(blk) (block_dir_size(&(blk->body.dir)))
+#define block_level(blk) ((blk)->body.dir.level)
 
 #pragma pack()
 
@@ -114,6 +116,8 @@ class Block
 
         bool is_dir() const {return (block_is_dir(_block));}
         bool is_data() const {return !(block_is_dir(_block));}
+        int level() const {return _block->body.dir.level;}
+        int level(uint32_t val) {_block->body.dir.level = val; changed(true);}
         
         char* block_buffer()
         {
@@ -209,6 +213,12 @@ class Block
                 Iterator& operator++()
                 {
                     _index += 1;
+                    return *this;
+                }
+
+                Iterator& operator--()
+                {
+                    _index -= 1;
                     return *this;
                 }
             private:

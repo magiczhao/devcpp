@@ -112,7 +112,7 @@ bool Block::remove(int position)
     if(_block->body.dir.count > position && position >= 0){
         int moved_size = _block->body.dir.items[position].size;
         int moved_start = _block->body.dir.items[position].start;
-        for(int i = position + 1; i < _block->body.dir.count - 1; ++i){
+        for(int i = position; i < _block->body.dir.count - 1; ++i){
             //copy dir
             _block->body.dir.items[i] = _block->body.dir.items[i + 1];
             _block->body.dir.items[i].start += moved_size;
