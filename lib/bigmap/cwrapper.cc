@@ -6,7 +6,7 @@
 
 typedef devcpp::bigmap::StrHash Hash;
 typedef devcpp::bigmap::KVEqual Equal;
-typedef devcpp::bigmap::SimpleHash<Hash, Equal, 8 * 1024 * 1024> SHashTable;
+typedef devcpp::bigmap::SimpleHash<Hash, Equal, 8 * 1024 * 1024, 10240> SHashTable;
 static SHashTable* stable = NULL;
 #ifdef __cplusplus
 extern "C" {

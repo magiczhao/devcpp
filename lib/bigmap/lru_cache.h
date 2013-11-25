@@ -2,15 +2,17 @@
 #define DEVCPP_BIGMAP_LRU_CACHE_H
 
 #include <ext/hash_map>
+#include <string>
+using namespace std;
 using namespace __gnu_cxx;
 
 #include "buffer.h"
+#include "str_hash.h"
 
 namespace devcpp
 {
 namespace bigmap
 {
-
 
 class LruCache
 {
@@ -18,70 +20,78 @@ class LruCache
     {
         struct ListNode* next;
         struct ListNode* prev;
-        int block_id;
+        string key;
     };
-    struct BlockItem
+    struct ValueItem
     {
-        Block* blk;
         struct ListNode* node;
+        string value;
     };
-    typedef hash_map<unsigned int, struct BlockItem>  BlockMap;
+    typedef hash_map<string, struct ValueItem, StrHash>  ValueMap;
 
     public:
         LruCache(int max) : _max(max)
         {
             _head.next = &_head;
             _head.prev = &_head;
-            _head.block_id = -1;
         }
         ~LruCache()
         {
-            for(BlockMap::iterator it = _cache.begin(); it != _cache.end();){
-                Block* blk = it->second.blk;
-                blk->manager()->free(blk);  //free block memory
-                remove_list(it->second.node); // remove from list
-                delete it->second.node;  // free list node
-                _cache.erase(it++); // remove from hash
+            _cache.clear();
+            while(_head.next != &_head){
+                struct ListNode* node = _head.next;
+                remove_list(_head.next);
+                delete node;
             }
         }
 
-        void remove(unsigned int blockid)
+        void remove(string& key)
         {
-            BlockMap::iterator it = _cache.find(blockid);
+            ValueMap::iterator it = _cache.find(key);
             if(it != _cache.end()){
-                Block* blk = it->second.blk;
-                blk->manager()->free(blk);
-                remove_list(it->second.node);
-                delete it->second.node;
+                struct ValueItem& item = it->second;
+                remove_list(item.node);
+                delete item.node;
                 _cache.erase(it);
             }
         }
 
-        Block* get(unsigned int blockid)
+        bool get(string& key, Buffer* value)
         {
-            BlockMap::iterator it = _cache.find(blockid);
+            ValueMap::iterator it = _cache.find(key);
             if(it != _cache.end()){
-                remove_list(it->second.node);
-                insert_list(it->second.node);
-                return it->second.blk;
+                struct ValueItem& item = it->second;
+                remove_list(item.node);
+                insert_list(item.node);
+                if(value->size() > item.value.size()){
+                    memcpy((*value)(), item.value.c_str(), item.value.size());
+                    value->size(item.value.size());
+                    return true;
+                }
             }
-            return NULL;
+            return false;
         }
 
-        void set(unsigned int blockid, Block* buf)
+        void set(const string& key, const string& value)
         {
-            BlockMap::iterator it = _cache.find(blockid);
+            ValueMap::iterator it = _cache.find(key);
             if(it != _cache.end()){
-                Block* blk = it->second.blk;
-                blk->manager()->free(blk);
-                remove_list(it->second.node);
-                insert_list(it->second.node);
-                it->second.blk = buf;
+                ValueItem& item = it->second;
+                item.value = value;
+                remove_list(item.node);
+                insert_list(item.node);
             }else{
                 struct ListNode* node = new ListNode;
-                node->block_id = blockid;
-                struct BlockItem item = {buf, node};
-                _cache.insert(make_pair(blockid, item));
+                node->key = key;
+                struct ValueItem item = {node, value};
+                _cache.insert(make_pair(key, item));
+                ValueMap::iterator it = _cache.find(key);
+                insert_list(node);
+            }
+
+            if(count() > _max){
+                struct ListNode* last_one = last();
+                remove(last_one->key);
             }
         }
 
@@ -90,6 +100,13 @@ class LruCache
             return _cache.size();
         }
     private:
+        struct ListNode* last()
+        {
+            if(_head.prev != &_head){
+                return _head.prev;
+            }
+            return NULL;
+        }
 
         void remove_list(struct ListNode* node)
         {
@@ -104,11 +121,11 @@ class LruCache
             struct ListNode* next = _head.next;
             node->next = next;
             next->prev = node; //install next
-            _head->next = node;
+            _head.next = node;
             node->prev = &_head; //install prev
         }
 
-        BlockMap _cache;
+        ValueMap _cache;
         struct ListNode _head;
         int _max;
 };

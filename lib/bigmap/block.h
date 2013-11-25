@@ -340,7 +340,7 @@ class BlockAutoPtr
             }
         }
 
-        Block* operator*()
+        Block* operator()()
         {
             return _block;
         }

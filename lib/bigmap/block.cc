@@ -99,12 +99,9 @@ bool Block::save()
 bool Block::init(int flag)
 {
     //_block->flag = flag;
-    if(block_is_dir(_block)){
-        _block->body.dir.count = 0;
-        _block->body.dir.remain = BLOCK_SIZE - sizeof(struct BlockHead);
-        return true;
-    }
-    return false;
+    _block->body.dir.count = 0;
+    _block->body.dir.remain = BLOCK_SIZE - sizeof(struct BlockHead);
+    return true;
 }
 
 bool Block::remove(int position)
@@ -133,7 +130,7 @@ bool Block::remove(int position)
 int Block::insert(const char* value, int size)
 {
     trace("inside insert, blockId:%d, size:%d, remain:%d", _blockid, this->size(), remain());
-    if(block_is_dir(_block) && remain() > (size + sizeof(struct BlockItem))){
+    if(remain() > (size + sizeof(struct BlockItem))){
         int index = _block->body.dir.count;
         int start = BLOCK_SIZE - size;
         if(_block->body.dir.count > 0){
@@ -150,7 +147,7 @@ int Block::insert(const char* value, int size)
         _block->body.dir.count += 1;
         return index;
     }
-    trace("insert to block, size:%d, block_is_dir:%d, remain:%d", size, block_is_dir(_block), remain());
+    trace("insert to block, size:%d, remain:%d", size, remain());
     return -1;
 }
 
