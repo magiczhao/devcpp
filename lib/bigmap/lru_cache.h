@@ -14,14 +14,19 @@ namespace devcpp
 namespace bigmap
 {
 
+/**
+ * LruCache的做法：内部采用hash_map加上链表，每次访问过之后的都放到链尾部
+ */
 class LruCache
 {
     struct ListNode
     {
         struct ListNode* next;
         struct ListNode* prev;
-        string key;
+        string key; // string的赋值不会拷贝，只是指针的复制，因此可以采用
     };
+
+    /** 保存着hash表中的值，包含链表和真实值 */
     struct ValueItem
     {
         struct ListNode* node;
@@ -75,12 +80,12 @@ class LruCache
         void set(const string& key, const string& value)
         {
             ValueMap::iterator it = _cache.find(key);
-            if(it != _cache.end()){
+            if(it != _cache.end()){ //cache中有，只是修改value字段，重置在访问链表中的指针
                 ValueItem& item = it->second;
                 item.value = value;
                 remove_list(item.node);
                 insert_list(item.node);
-            }else{
+            }else{ //cache中原来没有，插入新创建的
                 struct ListNode* node = new ListNode;
                 node->key = key;
                 struct ValueItem item = {node, value};
