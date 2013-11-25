@@ -33,6 +33,8 @@ class MappedFile
     private:
         MappedFile(const MappedFile& mf){}
         MappedFile& operator=(const MappedFile& mf) {return *this;}
+
+        int file_size();
     private:
         string  _filename;
         void*   _buffer;

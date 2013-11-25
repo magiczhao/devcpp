@@ -28,7 +28,9 @@ class Buckets
          */
         Buckets(unsigned int* buffer, int size) : _shift(buffer), _blocks(buffer + 1), 
             _buffer(buffer + 2), _size(size - 16)
-        {}
+        {
+            trace("buckets init, shift:%d, %d", (int)_shift, (int)buffer);
+        }
         ~Buckets(){}
         
         /** 
@@ -223,7 +225,6 @@ class SimpleHash
                     blk->level(shift);
                 }
             }
-            _blk_mgr.init(filename);
         }
 
         ~SimpleHash()
@@ -236,7 +237,7 @@ class SimpleHash
         /** 把KVPair中的value部分拷贝到value中 */
         bool copy_value(Buffer& buffer, Buffer* value);
         bool extend_block();
-        bool insert_into_block(int bucket, Buffer& data);
+        bool insert_into_block(int bucket, Buffer& key, Buffer& data);
         bool fill_bucket(int bucket);
         bool need_extend(int blockid)
         {
@@ -303,10 +304,18 @@ bool SimpleHash<HashFunc, EqualFunc, HeaderSize>::extend_block()
 }
 
 template<typename HashFunc, typename EqualFunc, int HeaderSize>
-bool SimpleHash<HashFunc, EqualFunc, HeaderSize>::insert_into_block(int bucket, Buffer& data)
+bool SimpleHash<HashFunc, EqualFunc, HeaderSize>::insert_into_block(int bucket, Buffer& key, Buffer& data)
 {
     Block* blk = _blk_mgr.get(bucket);
     BlockAutoPtr ptr(blk);
+    for(Block::Iterator it = blk->begin(); it != blk->end(); 
+            ++it){
+        Buffer buf(it(), it.size());
+        if(_equal(buf, key)){
+            blk->remove(it.position());
+            break;
+        }
+    }
     return (blk->insert(data(), data.size()) >= 0);
 }
 
@@ -326,7 +335,7 @@ bool SimpleHash<HashFunc, EqualFunc, HeaderSize>::insert(Buffer& key, Buffer& va
         memcpy(keyptr(*kv), key(), key.size());
         memcpy(valueptr(*kv), value(), value.size());
         Buffer data_in_block(total, total_size);
-        bool res = insert_into_block(blockid, data_in_block);
+        bool res = insert_into_block(blockid, key, data_in_block);
         trace("about to insert into block:%d, res:%d", bucket, res);
         if(res){
             trace("insert into block:%d", bucket);
@@ -336,7 +345,7 @@ bool SimpleHash<HashFunc, EqualFunc, HeaderSize>::insert(Buffer& key, Buffer& va
                 trace("filling the bucket %d", blockid);
                 fill_bucket(bucket);
                 blockid = _buckets.bucket(bucket);
-                return insert_into_block(blockid, data_in_block);
+                return insert_into_block(blockid, key, data_in_block);
             }else{
                 trace("extending.... the buckets");
                 if(extend_block()){
@@ -344,7 +353,7 @@ bool SimpleHash<HashFunc, EqualFunc, HeaderSize>::insert(Buffer& key, Buffer& va
                     fill_bucket(newbucket);
                     blockid = _buckets.bucket(newbucket);
                     trace("about to insert into bucket:%d, block:%d", newbucket, blockid);
-                    return insert_into_block(blockid, data_in_block);
+                    return insert_into_block(blockid, key, data_in_block);
                 }
             }
         }

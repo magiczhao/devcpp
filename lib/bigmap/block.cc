@@ -44,6 +44,7 @@ bool BlockManager::save(Block* block)
 {
     int offset = block->blockid() * BLOCK_SIZE + _start;
     if(pwrite(_file, block->buffer(), BLOCK_SIZE, offset) == BLOCK_SIZE){
+        printf("Blocking save:%d.......................%d\n", (int)block->buffer(), block->size());
         block->changed(false);
         return true;
     }
@@ -61,15 +62,15 @@ Block* BlockManager::get(int blockid, int flag /*= 0x01*/)
     int bytes = pread(_file, buffer, BLOCK_SIZE, offset);
     if(bytes == BLOCK_SIZE){
         Block* blk = new Block(blockid, buffer, this);
-        trace("bytes read:%d, blockid:%d", bytes, blockid);
+        trace("bytes read:%d, blockid:%d, buffer:%d, size:%d", bytes, blockid, (int)buffer, blk->size());
         if(blk){
             return blk;
         }else{
             ::free(buffer);
         }
     }else if(bytes >= 0){
-        trace("bytes read:%d, block_id:%d", bytes, blockid);
         Block* blk = new Block(blockid, buffer, this);
+        trace("bytes read:%d, block_id:%d, buffer:%d, size:%d", bytes, blockid, (int)buffer, blk->size());
         blk->init(flag);
         return blk;
     }
@@ -88,7 +89,7 @@ Block::~Block()
 bool Block::save()
 {
     if(changed()){
-        //trace("block save: flag:%d", _block->flag);
+        trace("block save: flag:%d", changed());
         return _manager->save(this);
     }else{
         return false;

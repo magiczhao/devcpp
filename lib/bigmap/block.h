@@ -168,7 +168,8 @@ class Block
                 {}
 
                 Iterator(Block* blk, int index) : _blk(blk), _index(index)
-                {}
+                {
+                }
 
                 Iterator(const Iterator& iter)
                 {
@@ -196,6 +197,7 @@ class Block
 
                 bool operator== (Iterator it)
                 {
+                    printf("_idx1=%d, idx2=%d\n", it._index, _index);
                     return it._index == _index && it._blk == _blk;
                 }
 

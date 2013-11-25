@@ -1,6 +1,6 @@
 
 syspath = "/home/demon/local/"
-SharedLibrary("bigmap++",['block.cc','maped_file.cc','segment.cc', 'log.cc'], CXXFLAGS="-g")
+SharedLibrary("bigmap++",['block.cc','maped_file.cc','segment.cc', 'log.cc', 'cwrapper.cc'], CXXFLAGS="-g")
 Program("block_test", 
     ["block_test.cc"], 
     CXXFLAGS="-I%s/include -g" % (syspath),

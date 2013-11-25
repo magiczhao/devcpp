@@ -1,6 +1,10 @@
 #include "maped_file.h"
 #include <string.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include "trace.h"
 
 namespace devcpp
@@ -17,6 +21,17 @@ MappedFile::MappedFile(const string& filename, int start, int length) : _buffer(
 MappedFile::~MappedFile()
 {
     unmap();
+}
+
+int MappedFile::file_size()
+{
+    struct stat filestat;
+    int res = stat(_filename.c_str(), &filestat);
+    if(res == -1){
+        return -1;
+    }else{
+        return (int)filestat.st_size;
+    }
 }
 
 bool MappedFile::unmap()
@@ -56,16 +71,19 @@ bool MappedFile::init(const string& filename, int start, int length)
         return false;
     }
     
-    if(lseek(fd, start + length, SEEK_SET) == -1){
-        close(fd);
-        trace("seek failed:%s", strerror(errno));
-        return false;
-    }
+    if(file_size() < (start + length)){
+        //file size not enough, extend it
+        if(lseek(fd, start + length, SEEK_SET) == -1){
+            close(fd);
+            trace("seek failed:%s", strerror(errno));
+            return false;
+        }
 
-    if(write(fd, "", 1) == -1){
-        close(fd);
-        trace("write to file failed:%s", strerror(errno));
-        return false;
+        if(write(fd, "", 1) == -1){
+            close(fd);
+            trace("write to file failed:%s", strerror(errno));
+            return false;
+        }
     }
     void* addr = mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, start);
     if(addr) {

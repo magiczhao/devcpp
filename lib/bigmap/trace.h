@@ -7,7 +7,7 @@ namespace bigmap
 {
 
 #define DEBUG 1
-#undef DEBUG
+//#undef DEBUG
 #if defined(DEBUG)
 #define trace(info, ...)     do{                 \
         printf("[TRACE]" info " [%s:%d]\n", ##__VA_ARGS__, __FILE__, __LINE__); \
